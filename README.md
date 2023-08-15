@@ -45,6 +45,14 @@ From release tarball:
     % make
     % make install
 
+From developpement:
+
+    % cd xfce4-panel-profiles
+    % virtualenv .venv
+    % . .venv/bin/python
+    % pip install poetry
+    % poetry install
+
 ### Reporting Bugs
 
 Visit the [reporting bugs](https://docs.xfce.org/apps/xfce4-panel-profiles/bugs) page to view currently open bug reports and instructions on reporting new bugs or submitting bugfixes.
