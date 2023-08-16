@@ -11,7 +11,13 @@
 # * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # * GNU General Public License for more details.
 
-from gi.repository import Gio, GLib
+from pprint import pprint
+
+import gi
+gi.require_version('Gdk', '3.0')
+
+
+from gi.repository import Gio, GLib, Gdk, GdkX11
 import tarfile
 import io
 import time
@@ -35,6 +41,95 @@ def add_to_tar(t, bytes, arcname):
     ti.mtime = time.time()
     f = io.BytesIO(bytes)
     t.addfile(ti, fileobj=f)
+
+
+
+def get_monitor_config():
+    "Return the current dicplay configuration"
+
+    display = Gdk.Display.get_default()
+
+    # Get screens
+    # screen_count = display.get_n_screens()
+    # ret_screens = []
+    # for m in range(screen_count):
+    #     tmp = display.get_screen(m)
+    #     ret_screens.append(tmp)
+
+    # Get monitors
+    monitor_count = display.get_n_monitors()
+    ret_monitors = {}
+    monitor_primary = []
+    monitors_gtk_order = []
+    for mon in range(monitor_count):
+        monitor = Gdk.Display.get_monitor(display, mon)
+
+        # Get monitor info
+        device = monitor.get_model()
+        primary = monitor.is_primary()
+        pos = GdkX11.X11Monitor.get_geometry(monitor)
+        area = GdkX11.X11Monitor.get_workarea(monitor)
+
+        # Process data
+        order_score = (area.x + 1 ) * (area.y + 1 )
+        if primary:
+            monitor_primary.append(device)
+        monitors_gtk_order.append(device)
+
+        ret_monitors[device] = {
+            "monitor_number": mon,
+
+            "manufacturer": monitor.get_manufacturer(),
+            "device": device,
+            "primary": primary,
+
+            "pos_x": pos.x,            
+            "pos_y": pos.y,
+            "pos_width": pos.width,
+            "pos_height": pos.height,
+
+            "area_x": area.x,            
+            "area_y": area.y,
+            "area_width": area.width,
+            "area_height": area.height,
+
+            "area": f"{area.width}x{area.height}+{area.x}+{area.y}",
+            "pos": f"{pos.width}x{pos.height}+{pos.x}+{pos.y}",
+
+            "output": GdkX11.X11Monitor.get_output(monitor),
+
+            "order_score": order_score,
+        }
+
+    # Get primary monitor
+    assert len(monitor_primary) <= 1, f"Too many primary monitors: {monitor_primary}"
+    monitor_primary = monitor_primary[0] if monitor_primary else None
+
+
+    # Generate monitor order
+    monitors_primary_order = []
+    monitors_natural_order = []
+    if monitor_primary:
+        monitors_primary_order.append(monitor_primary)
+
+    for key in (sorted(ret_monitors, key=lambda key: ret_monitors[key].get("order_score"))):
+        name = ret_monitors[key]["device"]
+        if not name in monitors_primary_order:
+            monitors_primary_order.append(name)
+
+        monitors_natural_order.append(name)
+
+            
+    ret = {
+        "monitor_count": monitor_count,
+        "monitor_primary_order": monitors_primary_order,
+        "monitor_natural_order": monitors_natural_order,
+        "monitor_gtk_order": monitors_gtk_order,
+        "monitor_primary": monitor_primary,
+        "monitors": ret_monitors,
+    }
+    return ret
+
 
 
 class PanelConfig(object):
@@ -73,7 +168,7 @@ class PanelConfig(object):
         return pc
 
     @classmethod
-    def from_file(cls, filename):
+    def from_file(cls, filename, remove_extra_panels=False, remap_extra_panels=False, spread_panels=False):
         pc = PanelConfig()
 
         pc.source = tarfile.open(filename, mode='r')
@@ -90,10 +185,128 @@ class PanelConfig(object):
         pc.find_desktops()
         pc.find_rc_files()
 
+        # New
+        pc.remap_screens(remove_extra_panels=remove_extra_panels, remap_extra_panels=remap_extra_panels, spread_panels=spread_panels)
+
         return pc
 
     def source_not_file(self):
         return getattr(self, 'source', None) is None
+
+
+    def remap_screens(self, remove_extra_panels=True, remap_extra_panels=True, spread_panels=False):
+
+        if not remap_extra_panels and not remove_extra_panels and not spread_panels:
+            return
+
+        # Fetch monitors config
+        screen_config = get_monitor_config()
+        monitor_primary_order = screen_config["monitor_primary_order"]
+        primary_mon = screen_config["monitor_primary"]
+
+        # Fetch panel config
+        panel_config_orig = {}
+        panel_index = 1
+        for pp in sorted(self.properties):
+            pv = self.properties[pp]
+            path = pp.split('/')
+            # pprint (path)
+            if len(path) == 4 and path[0] == '' and path[1] == 'panels' and \
+                    path[2].startswith('panel-') and path[3] == 'output-name':
+                
+                screen_req = pv.get_string()
+                panel_number = path[2].replace('panel-', "")
+                panel_config_orig[panel_number] = screen_req
+
+
+
+        # Find incoherent configuration
+        used_screens = {}
+        missing_screens = {}
+        screen_spread = {}
+
+        for panel_number, screen_name in sorted(panel_config_orig.items()):
+
+            real_name = screen_name
+            if screen_name == "Primary":
+                if primary_mon:
+                    real_name = primary_mon
+
+            if real_name in monitor_primary_order:
+                used_screens[panel_number] = real_name
+
+                if not real_name in screen_spread:
+                    screen_spread[real_name] = []
+                screen_spread[real_name].append(panel_number)
+
+            else:
+                missing_screens[panel_number] = real_name
+
+
+        # Prepare new configuration
+        panel_config_new = dict(panel_config_orig)
+        panels_to_remove = []
+        unused_screens = [ screen for screen in monitor_primary_order if screen not in used_screens.values()]
+
+        spread_panels = True
+
+        if spread_panels:
+
+            index = 0
+            for screen_name, panels in screen_spread.items():
+                if len(panels) > 1:
+                    print ("Unspreaded panel", panels, "on", screen_name)
+
+
+                    for panel in panels[1:]:
+                        if 0 <= index < len(unused_screens):
+                            if remap_extra_panels:
+                                available_screen = unused_screens[index]
+                                panel_config_new[panel_number] = available_screen
+                                used_screens[panel_number] = available_screen
+                                del unused_screens[index]
+                        else:
+                            if remove_extra_panels:
+                                print ("Remove unspread panel", panel_number)
+                                panels_to_remove.append(f"/panels/panel-{panel_number}")
+                                del panel_config_new[panel_number]
+
+
+        if missing_screens:
+
+            index = 0
+            for panel_number in sorted(missing_screens):
+                
+                if 0 <= index < len(unused_screens):
+                    if remap_extra_panels:
+                        panel_config_new[panel_number] = unused_screens[index]
+                else:
+
+                    if remove_extra_panels:
+                        print ("Remove panel", panel_number)
+                        panels_to_remove.append(f"/panels/panel-{panel_number}")
+                        del panel_config_new[panel_number]
+
+        
+        # pprint ({prop: self.properties[prop] for prop in self.properties if prop.startswith("/panels")})
+
+        # Cleanup panels
+        if panels_to_remove:
+
+            # remove unecessary panels
+            self.remove_keys(panels_to_remove)
+
+            # Update panels array
+            new_panel_keys = ", ".join([ f"<{index}>" for index in panel_config_new.keys() ])
+            new_panel_keys = f"[{new_panel_keys}]"
+            self.properties["/panels"] = GLib.Variant.parse(None, new_panel_keys, None, None)
+
+        # Report changes to user
+        if panel_config_new != panel_config_orig:
+            print ("New configuration")
+            pprint ({prop: self.properties[prop] for prop in self.properties if prop.startswith("/panels")})
+
+
 
     def remove_orphans(self):
         plugin_ids = set()
@@ -262,6 +475,7 @@ class PanelConfig(object):
         return False
 
     def to_xfconf(self, xfconf):
+        # assert False, "WIPPP"
         session_bus = Gio.BusType.SESSION
         conn = Gio.bus_get_sync(session_bus, None)
 
@@ -313,3 +527,57 @@ class PanelConfig(object):
 
     def has_errors(self):
         return len(self.errors) > 0
+
+
+
+
+    def rc_to_xfconf(self, xfconf):
+        # assert False, "WIPPP"
+        session_bus = Gio.BusType.SESSION
+        conn = Gio.bus_get_sync(session_bus, None)
+
+        destination = 'org.xfce.Panel'
+        path = '/org/xfce/Panel'
+        interface = destination
+
+        dbus_proxy = Gio.DBusProxy.new_sync(conn, 0, None, destination, path, interface, None)
+
+        if dbus_proxy is not None:
+            # Reset all properties to make sure old settings are invalidated
+            try:
+                xfconf.call_sync('ResetProperty', GLib.Variant(
+                    '(ssb)', ('xfce4-panel', '/', True)), 0, -1, None)
+            except GLib.Error:  # pylint: disable=E0712
+                pass
+
+            for (pp, pv) in sorted(self.properties.items()):
+                xfconf.call_sync('SetProperty', GLib.Variant(
+                    '(ssv)', ('xfce4-panel', pp, pv)), 0, -1, None)
+
+            # for d in self.desktops:
+            #     bytes = self.get_desktop_source_file(d).read()
+            #     mkdir_p(config_dir + os.path.dirname(d))
+            #     f = open(config_dir + d, 'wb')
+            #     f.write(bytes)
+            #     f.close()
+
+            # for rc in self.rc_files:
+            #     bytes = self.get_rc_source_file(rc).read()
+            #     f = open(os.path.join(config_dir, rc), 'wb')
+            #     f.write(bytes)
+            #     f.close()
+
+            #     # Kill the plugin so that it reloads the config we just wrote and does
+            #     # not overwrite it with its current cache when the panel restarts below.
+            #     # Some plugins don't save their config when restarting the panel
+            #     # (e.g. whiskermenu) but others do (e.g. netload)
+            #     plugin_id = rc.replace('.', '-').split('-')[1]
+            #     proc_name_prefix = 'panel-' + plugin_id + '-'
+            #     for proc in psutil.process_iter():
+            #         if proc.name().startswith(proc_name_prefix):
+            #             proc.kill()
+
+            try:
+                dbus_proxy.call_sync('Terminate', GLib.Variant('(b)', ('xfce4-panel',)), 0, -1, None)
+            except GLib.GError:  # pylint: disable=E0712
+                pass
