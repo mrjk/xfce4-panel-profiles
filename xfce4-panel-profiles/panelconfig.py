@@ -13,6 +13,7 @@
 
 from pprint import pprint
 
+import logging
 import gi
 gi.require_version('Gdk', '3.0')
 
@@ -25,6 +26,8 @@ import os
 import psutil
 
 # yes, python 3.2 has exist_ok, but it will still fail if the mode is different
+
+logger = logging.getLogger("xfce4_panel_profiles.panelconfig")
 
 config_dir = os.path.join(GLib.get_user_config_dir(), 'xfce4/panel/')
 
@@ -43,6 +46,63 @@ def add_to_tar(t, bytes, arcname):
     t.addfile(ti, fileobj=f)
 
 
+def python_to_variant_data(pv):
+
+    
+    if isinstance(pv, str):
+        ret = f"'{pv}'"
+    elif isinstance(pv, bool):
+        ret = f"false"
+        if pv:
+            ret = f"true"
+    elif isinstance(pv, list):
+        ret = "[" + ", ".join([ f"<{index}>" for index in pv]) + "]"
+    elif isinstance(pv, (int, float)):
+        ret = f"{pv}"
+    elif not pv:
+        ret = "''"
+    else:
+        assert False, f"Unsupported type: {pv}"
+
+    # print ("python to variant", pv, ret)
+    return ret
+
+
+def variant_data_to_python(data):
+
+    data = str(data)
+    if data.startswith("'"):
+        ret = f"{data}".strip("'")
+    elif data == "true":
+        ret = True
+    elif data == "false":
+        ret = False
+
+    elif data.startswith("["):
+        ret = "[" + ", ".join([ f"<{index}>" for index in pv]) + "]"
+    elif data[0] in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]:
+        ret = int(data)
+
+    elif not data:
+        ret = ''
+    else:
+        assert False, f"Unsupported type: {data}"
+
+    # print ("variant to py", data, ret)
+    return ret
+
+
+def python_to_variant(channel, key, value):
+
+    # print ("TO VARIANT", channel, key, value)
+
+    value = python_to_variant_data(value)
+
+    value = GLib.Variant.parse(None, value, None, None)
+
+    return GLib.Variant('(ssv)', (channel, key, value))
+
+    # xfconf.call_sync('SetProperty', , 0, -1, None)
 
 def get_monitor_config():
     "Return the current dicplay configuration"
@@ -184,8 +244,6 @@ class PanelConfig(object):
         pc.remove_orphans()
         pc.find_desktops()
         pc.find_rc_files()
-
-        # New
         pc.remap_screens(remove_extra_panels=remove_extra_panels, remap_extra_panels=remap_extra_panels, spread_panels=spread_panels)
 
         return pc
@@ -210,7 +268,6 @@ class PanelConfig(object):
         for pp in sorted(self.properties):
             pv = self.properties[pp]
             path = pp.split('/')
-            # pprint (path)
             if len(path) == 4 and path[0] == '' and path[1] == 'panels' and \
                     path[2].startswith('panel-') and path[3] == 'output-name':
                 
@@ -224,7 +281,6 @@ class PanelConfig(object):
         used_screens = {}
         missing_screens = {}
         screen_spread = {}
-
         for panel_number, screen_name in sorted(panel_config_orig.items()):
 
             real_name = screen_name
@@ -243,68 +299,59 @@ class PanelConfig(object):
                 missing_screens[panel_number] = real_name
 
 
-        # Prepare new configuration
-        panel_config_new = dict(panel_config_orig)
-        panels_to_remove = []
-        unused_screens = [ screen for screen in monitor_primary_order if screen not in used_screens.values()]
 
-        spread_panels = True
+
+
+        # Prepare new configuration
+
+        unused_screens = [ screen for screen in monitor_primary_order if screen not in used_screens.values()]
+        deleted_panels = []
 
         if spread_panels:
 
             index = 0
             for screen_name, panels in screen_spread.items():
                 if len(panels) > 1:
-                    print ("Unspreaded panel", panels, "on", screen_name)
+                    panel_names = ', '.join([f"panel-{panel}" for panel in panels])
+                    logger.debug (f"Found multiple panels on same monitor: {panel_names} on {screen_name}")
 
+                    for panel_number in panels[1:]:
 
-                    for panel in panels[1:]:
                         if 0 <= index < len(unused_screens):
                             if remap_extra_panels:
                                 available_screen = unused_screens[index]
-                                panel_config_new[panel_number] = available_screen
+                                logger.debug (f"Remap screen panel: panel-{panel_number} from {screen_name} to {available_screen}")
+                                xval = GLib.Variant.parse(None, f"'{available_screen}'", None, None)
+
+                                self.properties[f"/panels/panel-{panel_number}/output-name"] = xval
                                 used_screens[panel_number] = available_screen
                                 del unused_screens[index]
+
+                            else:
+                                logger.debug (f"Keep screen panel: panel-{panel_number} on missing {screen_name}")
+
                         else:
                             if remove_extra_panels:
-                                print ("Remove unspread panel", panel_number)
-                                panels_to_remove.append(f"/panels/panel-{panel_number}")
-                                del panel_config_new[panel_number]
+                                logger.debug (f"Remove extra panel: panel-{panel_number} on missing {screen_name}")
+                                self.remove_keys(f"/panels/panel-{panel_number}")
+                                deleted_panels.append(panel_number)
 
-
-        if missing_screens:
-
-            index = 0
-            for panel_number in sorted(missing_screens):
-                
-                if 0 <= index < len(unused_screens):
-                    if remap_extra_panels:
-                        panel_config_new[panel_number] = unused_screens[index]
+                                # panels_to_remove.append(f"/panels/panel-{panel_number}")
+                                # del panel_config_new[panel_number]
+                            else:
+                                logger.debug (f"Keep extra panel: panel-{panel_number} on missing {screen_name}")
                 else:
+                    logger.debug (f"Panel {panels} on {screen_name}")
 
-                    if remove_extra_panels:
-                        print ("Remove panel", panel_number)
-                        panels_to_remove.append(f"/panels/panel-{panel_number}")
-                        del panel_config_new[panel_number]
+        # Update panels array
+        new_panel_keys = ", ".join([ f"<{index}>" for index in panel_config_orig.keys() if index not in deleted_panels ])
+        new_panel_keys = f"[{new_panel_keys}]"
+        self.properties["/panels"] = GLib.Variant.parse(None, new_panel_keys, None, None)
 
-        
-        # pprint ({prop: self.properties[prop] for prop in self.properties if prop.startswith("/panels")})
 
-        # Cleanup panels
-        if panels_to_remove:
 
-            # remove unecessary panels
-            self.remove_keys(panels_to_remove)
-
-            # Update panels array
-            new_panel_keys = ", ".join([ f"<{index}>" for index in panel_config_new.keys() ])
-            new_panel_keys = f"[{new_panel_keys}]"
-            self.properties["/panels"] = GLib.Variant.parse(None, new_panel_keys, None, None)
-
-        # Report changes to user
-        if panel_config_new != panel_config_orig:
-            print ("New configuration")
-            pprint ({prop: self.properties[prop] for prop in self.properties if prop.startswith("/panels")})
+        # print ("New screen configuration:")
+        # pprint ({prop: self.properties[prop] for prop in self.properties if prop.endswith("/output-name")})
 
 
 
@@ -476,6 +523,7 @@ class PanelConfig(object):
 
     def to_xfconf(self, xfconf):
         # assert False, "WIPPP"
+
         session_bus = Gio.BusType.SESSION
         conn = Gio.bus_get_sync(session_bus, None)
 
@@ -492,6 +540,7 @@ class PanelConfig(object):
                     '(ssb)', ('xfce4-panel', '/', True)), 0, -1, None)
             except GLib.Error:  # pylint: disable=E0712
                 pass
+
 
             for (pp, pv) in sorted(self.properties.items()):
                 xfconf.call_sync('SetProperty', GLib.Variant(
@@ -525,59 +574,58 @@ class PanelConfig(object):
             except GLib.GError:  # pylint: disable=E0712
                 pass
 
+
     def has_errors(self):
         return len(self.errors) > 0
 
 
 
+    @classmethod
+    def rc_to_xfconf(self, xfconf, dict_config=None):
 
-    def rc_to_xfconf(self, xfconf):
-        # assert False, "WIPPP"
+        dict_config = dict_config or {}
+
         session_bus = Gio.BusType.SESSION
         conn = Gio.bus_get_sync(session_bus, None)
 
-        destination = 'org.xfce.Panel'
-        path = '/org/xfce/Panel'
+        destination = 'org.xfce.PanelProfiles'
+        path = '/org/xfce/PanelProfiles'
         interface = destination
 
         dbus_proxy = Gio.DBusProxy.new_sync(conn, 0, None, destination, path, interface, None)
 
         if dbus_proxy is not None:
-            # Reset all properties to make sure old settings are invalidated
-            try:
-                xfconf.call_sync('ResetProperty', GLib.Variant(
-                    '(ssb)', ('xfce4-panel', '/', True)), 0, -1, None)
-            except GLib.Error:  # pylint: disable=E0712
-                pass
 
-            for (pp, pv) in sorted(self.properties.items()):
-                xfconf.call_sync('SetProperty', GLib.Variant(
-                    '(ssv)', ('xfce4-panel', pp, pv)), 0, -1, None)
-
-            # for d in self.desktops:
-            #     bytes = self.get_desktop_source_file(d).read()
-            #     mkdir_p(config_dir + os.path.dirname(d))
-            #     f = open(config_dir + d, 'wb')
-            #     f.write(bytes)
-            #     f.close()
-
-            # for rc in self.rc_files:
-            #     bytes = self.get_rc_source_file(rc).read()
-            #     f = open(os.path.join(config_dir, rc), 'wb')
-            #     f.write(bytes)
-            #     f.close()
-
-            #     # Kill the plugin so that it reloads the config we just wrote and does
-            #     # not overwrite it with its current cache when the panel restarts below.
-            #     # Some plugins don't save their config when restarting the panel
-            #     # (e.g. whiskermenu) but others do (e.g. netload)
-            #     plugin_id = rc.replace('.', '-').split('-')[1]
-            #     proc_name_prefix = 'panel-' + plugin_id + '-'
-            #     for proc in psutil.process_iter():
-            #         if proc.name().startswith(proc_name_prefix):
-            #             proc.kill()
+            for (pp, pv) in sorted(dict_config.items()):
+                glib_variant = python_to_variant('xfce4-panel-profiles', pp, pv)
+                # print (f"xfconf save: {pp}: {pv}")
+                xfconf.call_sync('SetProperty', glib_variant, 0, -1, None)
 
             try:
-                dbus_proxy.call_sync('Terminate', GLib.Variant('(b)', ('xfce4-panel',)), 0, -1, None)
+                dbus_proxy.call_sync('Terminate', GLib.Variant('(b)', ('xfce4-panel-profiles',)), 0, -1, None)
             except GLib.GError:  # pylint: disable=E0712
                 pass
+
+
+    @classmethod
+    def xfconf_to_rc(cls, xfconf):
+        ret = {}
+
+        result = xfconf.call_sync(
+            'GetAllProperties',
+            GLib.Variant('(ss)', ('xfce4-panel-profiles', '')), 0, -1, None)
+
+        props = result.get_child_value(0)
+
+        for n in range(props.n_children()):
+            p = props.get_child_value(n)
+            pp = p.get_child_value(0).get_string()
+            pv = p.get_child_value(1).get_variant()
+            kind = p.get_child_value(1).get_type()
+
+            pn = GLib.Variant.parse(None, str(pv), None, None)
+            assert(pv == pn)
+
+            ret[pp] = variant_data_to_python(pv)
+
+        return ret

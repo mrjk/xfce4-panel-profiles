@@ -21,6 +21,7 @@ from pprint import pprint
 
 from locale import gettext as _
 
+import logging
 import shutil
 import shlex
 import os
@@ -49,6 +50,11 @@ import info
 
 warnings.filterwarnings("ignore")
 
+logger = logging.getLogger("xfce4_panel_profiles")
+
+
+class Recall(Exception):
+    "Exception to ask a new try"
 
 def path_to_tuple(path):
     directory = os.path.dirname(path)
@@ -93,13 +99,167 @@ class FileConfig():
             self.ext = tar + ext
             #self.path = self.to_path()
         else:
-            assert False, "Invalid file name!"
+            raise ValueError(f"Not a valid file extensions: {path}")
 
     def to_path(self):
         return os.path.join(self.directory, self.filename)
 
 
-class XfcePanelProfiles:
+class XfcePanelProfilesApp:
+    "Main app logic"
+
+
+
+    def __init__(self):
+
+        self.load_xfconf()
+
+        self.xpp_conf = self.load_xpp_config()
+
+
+                    
+    def cli_save(self, filename):
+        logger.info (f"Save: {filename}")
+        PanelConfig.from_xfconf(xfconf).to_file(filename)
+
+
+    def cli_restore(self):
+
+        pconf = self.xpp_conf
+        template = True
+        filename = pconf.get("/template_config")
+        if not source:
+            filename = pconf.get("/current_config")
+            template = False
+
+        logger.info (f"Restore: {filename}")
+
+        self.load_configuration(filename,
+                template=template, 
+                )
+
+
+    def cli_load(self, filename=None, template=False):
+
+        pconf = self.xpp_conf
+        if not filename:
+            if template:
+                filename = pconf.get("/template_config")
+                if filename:
+                    logger.info (f"Load template: {filename}")
+                else:
+                    filename = pconf.get("/current_config")
+                    logger.info (f"Load file instead of template : {filename}")
+
+            else:
+                filename = pconf.get("/current_config")
+                logger.info (f"Load file: {filename}")
+
+
+        
+
+        self.load_configuration(filename,
+                template=template, 
+                )
+
+                        # app.cli_load(sys.argv[2])
+
+
+                        # remove_extra_panels=False, 
+                        # remap_extra_panels=False,
+                        # spread_panels=False,
+
+                        # conf_file = conf_file or pconf.get("/current_config")
+            # PanelConfig.from_file(
+            #     conf_file,
+            #     # remove_extra_panels=remove_extra_panels, 
+            #     # remap_extra_panels=remap_extra_panels,
+            #     # spread_panels=spread_panels,
+            #     ).to_xfconf(xfconf)
+
+                    # elif sys.argv[1] == 'template':
+
+                    #     app.cli_load(sys.argv[2], template=True)
+
+
+                        # conf_file = conf_file or pconf.get("/template_config") or pconf.get("/current_config")
+                        # PanelConfig.from_file(
+                        #     conf_file,
+                        #     remove_extra_panels=True, 
+                        #     remap_extra_panels=True,
+                        #     spread_panels=True,
+                        #     ).to_xfconf(xfconf)
+
+             
+    def load_xfconf(self):
+        session_bus = Gio.BusType.SESSION
+        cancellable = None
+        connection = Gio.bus_get_sync(session_bus, cancellable)
+
+        proxy_property = 0
+        interface_properties_array = None
+        destination = 'org.xfce.Xfconf'
+        path = '/org/xfce/Xfconf'
+        interface = destination
+
+        self.xfconf = Gio.DBusProxy.new_sync(
+            connection,
+            proxy_property,
+            interface_properties_array,
+            destination,
+            path,
+            interface,
+            cancellable)
+
+    def save_xpp_config(self, conf):
+        PanelConfig.rc_to_xfconf(self.xfconf, conf)
+
+    def load_xpp_config(self):
+        return PanelConfig.xfconf_to_rc(self.xfconf)
+
+
+    def load_configuration(self, filename, template=False):
+
+        # spread_panels = spread_panels or self.builder.get_object("spread_panels").get_active()
+        # remap_extra_panels = remap_extra_panels or self.builder.get_object("remap_extra_panels").get_active()
+        # remove_extra_panels = remove_extra_panels or self.builder.get_object("remove_extra_panels").get_active()
+        
+        if os.path.isfile(filename):
+
+            # Keep last
+            old_conf = self.load_xpp_config()
+            old_file = old_conf.get("/current_config")
+
+            # Load config
+            if template:
+                PanelConfig.from_file(
+                    filename,
+                    remove_extra_panels=True, 
+                    remap_extra_panels=True,
+                    spread_panels=True,
+                ).to_xfconf(self.xfconf)
+            else:
+                PanelConfig.from_file(
+                    filename,
+                ).to_xfconf(self.xfconf)
+
+            # Save config
+            conf = {
+                "/last_config": old_file,
+                "/current_config": filename,
+
+                "/template": False,
+                "/template_config": "",
+            }
+
+            if template:
+                conf["/template"] = True
+                conf["/template_config"] = filename
+            self.save_xpp_config(conf)
+
+
+
+class XfcePanelProfiles(XfcePanelProfilesApp):
 
     '''XfcePanelProfiles application class.'''
 
@@ -125,7 +285,10 @@ class XfcePanelProfiles:
 
         self.window = self.builder.get_object("xfpanel_switch_window")
 
+        # Load config
         self.load_xfconf()
+        
+
 
         modified_col = self.builder.get_object('modified_column')
         cell = Gtk.CellRendererText()
@@ -136,6 +299,9 @@ class XfcePanelProfiles:
         self.tree_model = self.treeview.get_model()
         self._update_treeview()
 
+
+        # Update last config
+        self._update_label_current_conf()
 
 
         # Sort by name, then sort by date so timestamp sort is alphabetical
@@ -150,17 +316,64 @@ class XfcePanelProfiles:
         self.window.show()
 
 
+    def load_configuration(self, filename, template=False):
+
+        super().load_configuration(filename, template=template)
+        self._update_label_current_conf()
+
+
+    def _update_label_current_conf(self):
+        suffix = ""
+        xpp_conf = self.load_xpp_config()
+        label_current_config = self.builder.get_object('label_current_config')
+        was_template = xpp_conf.get("/template")
+        if was_template:
+            current_config = xpp_conf.get("/template_config")
+            suffix = ' (as template)'
+        else:
+            current_config = xpp_conf.get("/current_config")
+
+        fconf = FileConfig(current_config).name
+        msg = 'Current configuration' + f": {fconf}" + suffix
+        label_current_config.set_label(msg)
+
+
     def _update_treeview(self):
         self.tree_model.clear()
         for config in self.get_saved_configurations():
             self.tree_model.append(config)
 
     def _copy(self, src, dst):
-        PanelConfig.from_file(
-            src
-            ).to_file(dst)
 
-    def _filedlg(self, title, action, default=None):
+
+        # Check for existing files
+        cont = self.windows_confirm_override(dst)
+        if not cont:
+            raise Recall(f"User refused override of file: {dst}")
+
+        try:
+            PanelConfig.from_file(
+                src
+                ).to_file(dst)
+
+        except Exception as err:
+            # dialog2 = PanelInfoDialog(self.window, message=str(err))
+            # dialog2.run()
+            # dialog2.destroy()
+            # dialog.destroy()
+            raise Recall(f"An error occured while trying to copy file: {err}")
+
+
+            # message = str(err)
+            # errordlg = Gtk.MessageDialog(
+            #     transient_for=self.window, modal=True,
+            #     message_type=Gtk.MessageType.ERROR,
+            #     text=message)
+
+            # errordlg.add_button(_("OK"), Gtk.ResponseType.OK)
+
+
+    def _filedlg(self, title, action, default_name=None):
         if action == Gtk.FileChooserAction.SAVE:
             button = _("Save")
         else:
@@ -173,29 +386,24 @@ class XfcePanelProfiles:
             button, Gtk.ResponseType.ACCEPT
         )
         dialog.set_default_response(Gtk.ResponseType.ACCEPT)
-        if default:
-            dialog.set_current_name(default)
+        
+
+        if default_name:
+            if os.path.isdir(default_name):
+                dialog.set_current_folder(default_name)
+            else:
+                base_dir = os.path.dirname(default_name)
+                if os.path.isdir(base_dir):
+                    basename = os.path.basename(default_name)
+
+                    dialog.set_current_folder(base_dir)
+                    dialog.set_current_name(basename)
+                else:
+                    dialog.set_current_name(default_name)
+
         return dialog
 
-    def load_xfconf(self):
-        session_bus = Gio.BusType.SESSION
-        cancellable = None
-        connection = Gio.bus_get_sync(session_bus, cancellable)
 
-        proxy_property = 0
-        interface_properties_array = None
-        destination = 'org.xfce.Xfconf'
-        path = '/org/xfce/Xfconf'
-        interface = destination
-
-        self.xfconf = Gio.DBusProxy.new_sync(
-            connection,
-            proxy_property,
-            interface_properties_array,
-            destination,
-            path,
-            interface,
-            cancellable)
 
     def get_data_dirs(self):
         dirs = []
@@ -243,6 +451,9 @@ class XfcePanelProfiles:
     def get_selected(self):
         model, treeiter = self.treeview.get_selection().get_selected()
         
+        if not model or not treeiter:
+            return None
+
         values = model[treeiter][:]
         return (model, treeiter, values)
 
@@ -266,6 +477,7 @@ class XfcePanelProfiles:
         created = values[2]
         new_filename = name + ".tar.bz2"
         new_filename = os.path.join(self.save_location, new_filename)
+
         self._copy(filename, new_filename)
         if append:
             self.tree_model.append([new_filename, name, created])
@@ -274,44 +486,34 @@ class XfcePanelProfiles:
         filename = name + ".tar.bz2"
         filename = os.path.join(self.save_location, filename)
 
+        # Check for existing files
+        cont = self.windows_confirm_override(filename)
+        if not cont:
+            raise Recall(f"User refused override of file: {filename}")
+
         pc = PanelConfig.from_xfconf(self.xfconf)
         if pc.has_errors():
             dialog = PanelErrorDialog(self.window, pc.errors)
             accept = dialog.run()
             dialog.destroy()
             if accept != Gtk.ResponseType.ACCEPT:
-                return
+                raise Recall(f"An error occured while saving file: {filename}")
         pc.to_file(filename)
         created = int(datetime.datetime.now().strftime('%s'))
         if append:
             self.tree_model.append([filename, name, created])
 
-    def make_name_unique(self, name):
-        iter = self.tree_model.get_iter_first()
-        while iter != None:
-            if self.tree_model.get_value(iter, 1) == name:
-                date = datetime.datetime.now().strftime("%x_%X")
-                date = date.replace(":", "-").replace("/", "-")
-                return name + '_' + date
-            iter = self.tree_model.iter_next(iter)
-        return name
+    # def make_name_unique(self, name):
+    #     iter = self.tree_model.get_iter_first()
+    #     while iter != None:
+    #         if self.tree_model.get_value(iter, 1) == name:
+    #             date = datetime.datetime.now().strftime("%x_%X")
+    #             date = date.replace(":", "-").replace("/", "-")
+    #             return name + '_' + date
+    #         iter = self.tree_model.iter_next(iter)
+    #     return name
 
-    def load_configuration(self, filename, 
-                remove_extra_panels=None, 
-                remap_extra_panels=None,
-                spread_panels=None):
 
-        # spread_panels = spread_panels or self.builder.get_object("spread_panels").get_active()
-        # remap_extra_panels = remap_extra_panels or self.builder.get_object("remap_extra_panels").get_active()
-        # remove_extra_panels = remove_extra_panels or self.builder.get_object("remove_extra_panels").get_active()
-        
-        if os.path.isfile(filename):
-            PanelConfig.from_file(
-                filename,
-                remove_extra_panels=remove_extra_panels, 
-                remap_extra_panels=remap_extra_panels,
-                spread_panels=spread_panels,
-            ).to_xfconf(self.xfconf)
 
     def delete_configuration(self, filename):
         if os.path.isfile(filename):
@@ -332,40 +534,68 @@ class XfcePanelProfiles:
         else:
             filename = None
 
-        dialog = PanelSaveDialog(self.window, default=filename)
+        name = self.windows_save_dialog(default=filename)
 
-        if dialog.run() == Gtk.ResponseType.ACCEPT:
-            name = dialog.get_save_name()
-            if len(name) > 0:
-                if filename == "": # Current configuration.
-                    name = self.make_name_unique(name)
-                    self.save_configuration(name)
-                else:
-                    row = self.get_selected()
-                    old_name = row[2][1]
-                    name = self.make_name_unique(_("%s (Copy of %s)") % (name, old_name))
-                    self.copy_configuration(row, name)
-        dialog.destroy()
+        # dialog = PanelSaveDialog(self.window, default=filename)
+
+        if name:
+        # if dialog.run() == Gtk.ResponseType.ACCEPT:
+            # name = dialog.get_save_name()
+            # if len(name) > 0:
+
+            row = self.get_selected()
+
+            if filename == "" or row is None: # Current configuration.
+                name = self.make_name_unique(name)
+                self.save_configuration(name)
+            else:
+                
+                old_name = row[2][1]
+                name = self.make_name_unique(_("%s (Copy of %s)") % (name, old_name))
+                #name = _("%s (Copy of %s)") % (name, old_name)
+                self.copy_configuration(row, name)
+
+        # dialog.destroy()
 
 
     def on_import_clicked(self, widget):
-        dialog = self._filedlg(_("Import configuration file..."),
-                               Gtk.FileChooserAction.OPEN)
-        response = dialog.run()
-        if response == Gtk.ResponseType.ACCEPT:
-            filename = dialog.get_filename()
-            savedlg = PanelSaveDialog(self.window)
-            if savedlg.run() == Gtk.ResponseType.ACCEPT:
-                name = self.make_name_unique(savedlg.get_save_name())
-                dst = os.path.join(self.save_location, name + ".tar.bz2")
-                try:
-                    self._copy(filename, dst)
-                    self.tree_model.append(
-                        [dst, name, int(datetime.datetime.now().strftime('%s'))])
-                except tarfile.ReadError:
-                    message = _("Invalid configuration file!\n"
-                                "Please select a valid configuration file.")
+        recall = True
 
+        selected = self.get_selected_filename() or ""
+        if selected:
+            selpath = FileConfig(selected).directory
+        else:
+            selpath = None
+
+
+
+        dialog = self._filedlg(_("Import configuration file..."),
+                               Gtk.FileChooserAction.OPEN, selpath)
+        response = dialog.run()
+
+        while recall == True:
+
+
+            if response != Gtk.ResponseType.ACCEPT:
+                recall = False
+            else:
+                filename = dialog.get_filename()
+
+                # VAlidate file type
+                dname = None
+                try:
+                    dname = FileConfig(filename).name
+                    if dname is None:
+                        recall = False
+
+                except ValueError as err:
+                    # dialog2 = PanelInfoDialog(self.window, message=str(err))
+                    # dialog2.run()
+                    # dialog2.destroy()
+                    # dialog.destroy()
+
+
+                    message = str(err)
                     errordlg = Gtk.MessageDialog(
                         transient_for=self.window, modal=True,
                         message_type=Gtk.MessageType.ERROR,
@@ -375,9 +605,49 @@ class XfcePanelProfiles:
 
                     errordlg.run()
                     errordlg.destroy()
+                    
 
-            savedlg.destroy()
+                    # self.on_import_clicked(widget)
+                    # return
+
+                if dname:                    
+                    name = self.windows_save_dialog(default=dname)
+                    if not name:
+                        recall = False
+                    else:
+                        
+                        # savedlg = PanelSaveDialog(self.window, default=dname)
+
+                    # if savedlg.run() == Gtk.ResponseType.ACCEPT:
+                        # name = self.make_name_unique(savedlg.get_save_name())
+                        # name = self.make_name_unique(name)
+                        dst = os.path.join(self.save_location, name + ".tar.bz2")
+                        try:
+                            self._copy(filename, dst)
+                            self.tree_model.append(
+                                [dst, name, int(datetime.datetime.now().strftime('%s'))])
+
+                            recall = False
+                        except tarfile.ReadError:
+                            message = _("Invalid configuration file!\n"
+                                        "Please select a valid configuration file.")
+
+                            errordlg = Gtk.MessageDialog(
+                                transient_for=self.window, modal=True,
+                                message_type=Gtk.MessageType.ERROR,
+                                text=message)
+
+                            errordlg.add_button(_("OK"), Gtk.ResponseType.OK)
+
+                            errordlg.run()
+                            errordlg.destroy()
+                            recall=True
+                        except Recall:
+                            recall = True
+
+            # savedlg.destroy()
         dialog.destroy()
+
 
 
 
@@ -385,37 +655,56 @@ class XfcePanelProfiles:
     # COnfiguration toolbar actions
     # ===================
 
-    def on_apply_clicked(self, widget):
+    def on_apply_clicked(self, widget, template=False):
         filename = self.get_selected_filename()
         if not filename:
             return
 
+        # Confirm panel
         dialog = PanelConfirmDialog(self.window)
-        if dialog.run() == Gtk.ResponseType.ACCEPT:
-            if dialog.backup.get_active():
-                self.on_save_clicked(dialog)
-
-            self.load_configuration(filename)
+        ans = dialog.run()
+        do_backup = dialog.backup.get_active()
         dialog.destroy()
 
+        if ans == Gtk.ResponseType.ACCEPT:
 
-    def on_apply_template_clicked(self, widget):
-        filename = self.get_selected_filename()
-        if not filename:
-            return
-
-        dialog = PanelConfirmDialog(self.window)
-        if dialog.run() == Gtk.ResponseType.ACCEPT:
-            if dialog.backup.get_active():
-                self.on_save_clicked(dialog)
+            if do_backup:
+                self.on_save_clicked(widget)
 
             self.load_configuration(filename,
-                remove_extra_panels=True, 
-                remap_extra_panels=True,
-                spread_panels=True
+                template=template, 
                 )
-        dialog.destroy()
+    
 
+    def on_apply_template_clicked(self, widget):
+        self.on_apply_clicked(widget, template=True)
+
+
+
+
+    def windows_confirm_override(self, dst_path):
+        ret = True
+        if os.path.exists(dst_path):
+            msg = f"Do you want to override file '{dst_path}'?"
+            dialog2 = PanelConfirmContinueDialog(self.window, message=msg)
+            if dialog2.run() != Gtk.ResponseType.ACCEPT:
+                ret = False
+            dialog2.destroy()
+        return ret
+
+    def windows_save_dialog(self, default=None):
+
+        dialog = PanelSaveDialog(self.window, default=default)
+        resp = dialog.run()
+        ret = None
+        if resp == Gtk.ResponseType.ACCEPT:
+            dest_name = dialog.get_save_name()
+            ret = dest_name
+        
+        # Quit menu
+        dialog.destroy()
+        return ret
+        
 
 
     def _cp_mv(self, widget, action, path, dest_name=None, dest_dir=None):
@@ -432,14 +721,17 @@ class XfcePanelProfiles:
                 nname = nname + " - Copy"
 
         # Ask name destination
-        dialog = PanelSaveDialog(self.window, default=nname)
-        resp = dialog.run()
-        if resp == Gtk.ResponseType.ACCEPT:
-            dest_name = dialog.get_save_name()
-        else:
-            # Quit menu
-            dialog.destroy()
+        dest_name = self.windows_save_dialog(default=nname)
+        if not dest_name:
             return
+        # dialog = PanelSaveDialog(self.window, default=nname)
+        # resp = dialog.run()
+        # if resp == Gtk.ResponseType.ACCEPT:
+        #     dest_name = dialog.get_save_name()
+        # else:
+        #     # Quit menu
+        #     dialog.destroy()
+        #     return
 
 
         # Build destination
@@ -455,35 +747,37 @@ class XfcePanelProfiles:
                 msg = f"Please choose a different name"
                 dialog2 = PanelInfoDialog(self.window, message=msg, message_type=Gtk.MessageType.ERROR)
                 if dialog2.run() == Gtk.ResponseType.ACCEPT:
-                    confirmed = True
-                dialog2.destroy()
+                    recall = True
 
-                recall = True
+                dialog2.destroy()
 
             else:
 
-                confirmed = True
-                if os.path.exists(dst_path):
-                    confirmed = False
-                    msg = f"Do you want to override file '{dst_path}'?"
-                    dialog2 = PanelConfirmContinueDialog(self.window, message=msg)
-                    if dialog2.run() == Gtk.ResponseType.ACCEPT:
-                        confirmed = True
-                    dialog2.destroy()
+                confirmed = self.windows_confirm_override(dst_path)
 
-                if not confirmed:
-                    recall = True
-                else:
+                # confirmed = True
+                # if os.path.exists(dst_path):
+                #     confirmed = False
+                #     msg = f"Do you want to override file '{dst_path}'?"
+                #     dialog2 = PanelConfirmContinueDialog(self.window, message=msg)
+                #     if dialog2.run() == Gtk.ResponseType.ACCEPT:
+                #         confirmed = True
+                #     dialog2.destroy()
+
+                if confirmed is True:
+                    
                     if action == "mv":
-                        print ("MV", src_path, "TO", dst_path)
+                        logger.info (f"Move {src_path} to {dst_path}")
                         shutil.move(src_path, dst_path)
                     else:
-                        print ("COPY", src_path, "TO", dst_path)
+                        logger.info (f"Copy {src_path} to {dst_path}")
                         shutil.copy(src_path, dst_path)
 
                     self._update_treeview()
+                else:
+                    recall = True
 
-        dialog.destroy()
+        # dialog.destroy()
 
         if recall:
             self._cp_mv(widget, action, path, dest_name=target.name, dest_dir=dest_dir)
@@ -513,16 +807,43 @@ class XfcePanelProfiles:
 
 
     def on_export_clicked(self, widget):
+        recall = True
+
+        selected = self.get_selected_filename() or None
+        if selected:
+            selpath = FileConfig(selected).to_path()
+        else:
+            selpath = "Current config"
+
         dialog = self._filedlg(_("Export configuration as..."),
-                               Gtk.FileChooserAction.SAVE, _("Untitled"))
-        response = dialog.run()
-        if response == Gtk.ResponseType.ACCEPT:
-            selected = self.get_selected_filename() or ""
-            filename = dialog.get_filename()
-            if selected == "": # Current configuration.
-                self.save_configuration(filename, False)
+                               Gtk.FileChooserAction.SAVE, selpath)
+
+        while recall == True:
+            response = dialog.run()
+            if response == Gtk.ResponseType.ACCEPT:
+                filename = dialog.get_filename()
+                try:
+                    if selected == "": # Current configuration.
+                        self.save_configuration(filename, False)
+                    else:
+                        self.copy_configuration(self.get_selected(), filename, False)
+
+                    recall = False
+                except Recall as err:
+                    message = str(err)
+                    errordlg = Gtk.MessageDialog(
+                        transient_for=self.window, modal=True,
+                        message_type=Gtk.MessageType.ERROR,
+                        text=message)
+
+                    errordlg.add_button(_("OK"), Gtk.ResponseType.OK)
+
+                    errordlg.run()
+                    errordlg.destroy()
+                    # continue
             else:
-                self.copy_configuration(self.get_selected(), filename, False)
+                recall = False
+
         dialog.destroy()
 
 
@@ -595,8 +916,31 @@ class XfcePanelProfiles:
 
 
 
+    # def windows_confirm_override(self, dst_path=None):
+    #     ret = True
+    #     if os.path.exists(dst_path):
+    #         msg = f"Do you want to override file '{dst_path}'?"
+    #         dialog2 = PanelConfirmContinueDialog(self.window, message=msg)
+    #         if dialog2.run() != Gtk.ResponseType.ACCEPT:
+    #             ret = False
+    #         dialog2.destroy()
+    #     return ret
 
 
+
+    # def windows_save_dialog(self, default=None):
+
+    #     dialog = PanelSaveDialog(self.window, default=default)
+    #     resp = dialog.run()
+    #     ret = None
+    #     if resp == Gtk.ResponseType.ACCEPT:
+    #         dest_name = dialog.get_save_name()
+    #         ret = dest_name
+        
+    #     # Quit menu
+    #     dialog.destroy()
+    #     return ret
+        
 
 
 
@@ -783,23 +1127,66 @@ if __name__ == "__main__":
         interface,
         cancellable)
 
+
+    logging.basicConfig( level="DEBUG")
+
+    
     if len(sys.argv) > 1:
-        if sys.argv[1] in ['save', 'load']:
+
+        if sys.argv[1] in ['save', 'load', 'template', 'restore']:
+
+            app = XfcePanelProfilesApp()
+
             try:
                 if sys.argv[1] == 'save':
-                    PanelConfig.from_xfconf(xfconf).to_file(sys.argv[2])
-                elif sys.argv[1] == 'load':
+                    # PanelConfig.from_xfconf(xfconf).to_file()
 
-                    remove_extra_panels=False, 
-                    remap_extra_panels=False,
-                    spread_panels=False,
+                    app.cli_save(sys.argv[2])
 
-                    PanelConfig.from_file(
-                        sys.argv[2],
-                        remove_extra_panels=remove_extra_panels, 
-                        remap_extra_panels=remap_extra_panels,
-                        spread_panels=spread_panels,
-                        ).to_xfconf(xfconf)
+                # elif sys.argv[1] == 'restore':
+                #     conf_file = conf_file or pconf.get("/template_config") or pconf.get("/last_config")
+                #     PanelConfig.from_xfconf(xfconf).to_file(conf_file)
+
+                else:
+
+                    conf_file = None
+                    if len(sys.argv) > 2:
+                        conf_file = sys.argv[2]
+                    # else:
+                    #     pconf = self.load_xpp_config()
+                        
+
+                    if sys.argv[1] == 'load':
+
+                        app.cli_load(conf_file)
+
+
+                        # remove_extra_panels=False, 
+                        # remap_extra_panels=False,
+                        # spread_panels=False,
+
+                        # conf_file = conf_file or pconf.get("/current_config")
+                        # PanelConfig.from_file(
+                        #     conf_file,
+                        #     # remove_extra_panels=remove_extra_panels, 
+                        #     # remap_extra_panels=remap_extra_panels,
+                        #     # spread_panels=spread_panels,
+                        #     ).to_xfconf(xfconf)
+
+                    elif sys.argv[1] == 'template':
+
+                        app.cli_load(conf_file, template=True)
+
+
+                        # conf_file = conf_file or pconf.get("/template_config") or pconf.get("/current_config")
+                        # PanelConfig.from_file(
+                        #     conf_file,
+                        #     remove_extra_panels=True, 
+                        #     remap_extra_panels=True,
+                        #     spread_panels=True,
+                        #     ).to_xfconf(xfconf)
+
+
             except Exception as e:
                 print(repr(e))
                 exit(1)
@@ -813,7 +1200,8 @@ if __name__ == "__main__":
             print('Xfce Panel Profiles - Usage:')
             print(info.appname + ' : load graphical user interface.')
             print(info.appname + ' save <filename> : save current configuration.')
-            print(info.appname + ' load <filename> : load configuration from file.')
+            print(info.appname + ' load [<filename>] : load configuration from file.')
+            print(info.appname + ' template [<filename>] : load configuration from template file.')
             print('')
             exit(-1)
 
