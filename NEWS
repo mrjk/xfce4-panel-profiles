@@ -1,3 +1,22 @@
+xfce4-panel-profiles 1.1.0 (2023-08-xx)
+
+    * New Features
+      - Add ability to copy or rename existing profiles
+      - Better import/save file handling and user confirmation
+      - Add template support, allow to rewrite panel monitor destination
+      - Add template comand on the CLI
+      - Now display the last loaded profile
+    * General
+      - Now creates an entry in xfconf to keep track of last loaded profiles/templates
+      - Add support for python virtualenv
+      - Add poetry support to be able to build package
+      - Big rework of the internal code
+    * Bugs Fixed
+      - Release install error: incorrect README filename (#24)
+      - Better name matching between profile names and filenames
+      - UI is confusing: Buttons have been moved around, top menu
+
+
 1.0.14 (2023-06-05)
 ======
 - Save and restore rc-files
