@@ -1,13 +1,2 @@
-org.xfce.PanelProfiles.desktop
-*.gz
-*.orig
-*.tar.bz2
-*.xml
-*~
-Makefile.in
-Makefile
-locale
-bin/xfce4-panel-profiles
-bin/xfce4-panel-profiles.in
-xfce4-panel-profiles/info.py
-xfce4-panel-profiles/info.py.in
+dist/*
+*/__pycache__/*

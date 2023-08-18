@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Generated with glade 3.22.2 -->
+<!-- Generated with glade 3.40.0 -->
 <interface>
   <requires lib="gtk+" version="3.12"/>
   <requires lib="libxfce4ui-2" version="4.12"/>
@@ -14,22 +14,20 @@
     </columns>
   </object>
   <object class="XfceTitledDialog" id="xfpanel_switch_window">
-    <property name="can_focus">False</property>
-    <property name="title" translatable="yes">Panel Profiles</property>
-    <property name="default_width">350</property>
-    <property name="default_height">400</property>
-    <property name="icon_name">org.xfce.PanelProfiles</property>
-    <property name="type_hint">dialog</property>
-    <property name="subtitle" translatable="yes">Backup and restore your panel configuration</property>
+    <property name="can-focus">False</property>
+    <property name="default-width">500</property>
+    <property name="default-height">550</property>
+    <property name="icon-name">org.xfce.PanelProfiles</property>
+    <property name="type-hint">dialog</property>
     <signal name="delete-event" handler="on_window_destroy" swapped="no"/>
     <child internal-child="vbox">
       <object class="GtkBox" id="box1">
         <property name="visible">True</property>
-        <property name="can_focus">False</property>
+        <property name="can-focus">False</property>
         <property name="orientation">vertical</property>
         <child internal-child="action_area">
           <object class="GtkButtonBox">
-            <property name="can_focus">False</property>
+            <property name="can-focus">False</property>
           </object>
           <packing>
             <property name="expand">False</property>
@@ -38,28 +36,109 @@
           </packing>
         </child>
         <child>
+          <object class="GtkToolbar">
+            <property name="visible">True</property>
+            <property name="can-focus">False</property>
+            <property name="icon_size">4</property>
+            <child>
+              <object class="GtkToolButton" id="toolbar_save">
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="tooltip-text" translatable="yes">Save the current configuration</property>
+                <property name="label" translatable="yes">Save</property>
+                <property name="use-underline">True</property>
+                <property name="icon-name">document-new</property>
+                <signal name="clicked" handler="on_save_clicked" swapped="no"/>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="homogeneous">True</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkToolButton" id="toolbar_import">
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="tooltip-text" translatable="yes">Import from file</property>
+                <property name="label" translatable="yes">Import</property>
+                <property name="use-underline">True</property>
+                <property name="icon-name">document-import-symbolic</property>
+                <signal name="clicked" handler="on_import_clicked" swapped="no"/>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="homogeneous">True</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkSeparatorToolItem">
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="homogeneous">False</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkToolButton" id="toolbar_settings">
+                <property name="can-focus">False</property>
+                <property name="no-show-all">True</property>
+                <property name="label" translatable="yes">Settings</property>
+                <property name="use-underline">True</property>
+                <property name="icon-name">emblem-system-symbolic</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="homogeneous">True</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">0</property>
+          </packing>
+        </child>
+        <child>
           <object class="GtkAlignment" id="alignment1">
             <property name="visible">True</property>
-            <property name="can_focus">False</property>
-            <property name="border_width">6</property>
+            <property name="can-focus">False</property>
+            <property name="border-width">6</property>
             <child>
               <object class="GtkBox" id="box4">
                 <property name="visible">True</property>
-                <property name="can_focus">False</property>
+                <property name="can-focus">False</property>
                 <property name="orientation">vertical</property>
+                <property name="baseline-position">top</property>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="visible">True</property>
+                    <property name="can-focus">False</property>
+                    <property name="halign">start</property>
+                    <property name="label" translatable="yes">Backup and restore your panel configuration</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="position">0</property>
+                  </packing>
+                </child>
                 <child>
                   <object class="GtkScrolledWindow" id="scrolledwindow1">
                     <property name="visible">True</property>
-                    <property name="can_focus">True</property>
-                    <property name="shadow_type">in</property>
+                    <property name="can-focus">True</property>
+                    <property name="margin-top">6</property>
+                    <property name="shadow-type">in</property>
                     <child>
                       <object class="GtkTreeView" id="saved_configurations">
                         <property name="visible">True</property>
-                        <property name="can_focus">True</property>
+                        <property name="can-focus">True</property>
                         <property name="model">liststore1</property>
-                        <property name="search_column">0</property>
-                        <property name="tooltip_column">0</property>
+                        <property name="search-column">0</property>
+                        <property name="tooltip-column">0</property>
                         <signal name="cursor-changed" handler="on_saved_configurations_cursor_changed" swapped="no"/>
+                        <signal name="row-activated" handler="on_saved_configurations_cursor_double_click" swapped="no"/>
                         <child internal-child="selection">
                           <object class="GtkTreeSelection" id="treeview-selection1"/>
                         </child>
@@ -67,8 +146,8 @@
                           <object class="GtkTreeViewColumn" id="filename_column">
                             <property name="title" translatable="yes">Filename</property>
                             <property name="expand">True</property>
-                            <property name="sort_indicator">True</property>
-                            <property name="sort_column_id">0</property>
+                            <property name="sort-indicator">True</property>
+                            <property name="sort-column-id">0</property>
                             <child>
                               <object class="GtkCellRendererText" id="cellrenderertext1">
                                 <property name="ellipsize">end</property>
@@ -82,8 +161,8 @@
                         <child>
                           <object class="GtkTreeViewColumn" id="modified_column">
                             <property name="title" translatable="yes">Date Modified</property>
-                            <property name="sort_indicator">True</property>
-                            <property name="sort_column_id">2</property>
+                            <property name="sort-indicator">True</property>
+                            <property name="sort-column-id">2</property>
                           </object>
                         </child>
                       </object>
@@ -92,22 +171,23 @@
                   <packing>
                     <property name="expand">True</property>
                     <property name="fill">True</property>
-                    <property name="position">0</property>
+                    <property name="position">3</property>
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkToolbar" id="toolbar1">
+                  <object class="GtkToolbar" id="toolbar">
                     <property name="visible">True</property>
-                    <property name="can_focus">False</property>
+                    <property name="can-focus">False</property>
                     <property name="icon_size">2</property>
                     <child>
                       <object class="GtkToolButton" id="toolbar_apply">
                         <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="tooltip_text" translatable="yes">Apply Configuration</property>
+                        <property name="can-focus">False</property>
+                        <property name="tooltip-text" translatable="yes">Apply configuration</property>
+                        <property name="halign">start</property>
                         <property name="label" translatable="yes">Apply Configuration</property>
-                        <property name="use_underline">True</property>
-                        <property name="icon_name">system-run-symbolic</property>
+                        <property name="use-underline">True</property>
+                        <property name="icon-name">dialog-ok</property>
                         <signal name="clicked" handler="on_apply_clicked" swapped="no"/>
                       </object>
                       <packing>
@@ -116,14 +196,55 @@
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkToolButton" id="toolbar_save">
+                      <object class="GtkToolButton" id="toolbar_apply_template">
                         <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="tooltip_text" translatable="yes">Save Configuration</property>
-                        <property name="label" translatable="yes">Save Configuration</property>
-                        <property name="use_underline">True</property>
-                        <property name="icon_name">document-save-as-symbolic</property>
-                        <signal name="clicked" handler="on_save_clicked" swapped="no"/>
+                        <property name="can-focus">False</property>
+                        <property name="tooltip-text" translatable="yes">Apply configuration as template</property>
+                        <property name="label" translatable="yes">Apply template</property>
+                        <property name="use-underline">True</property>
+                        <property name="icon-name">document-page-setup-symbolic</property>
+                        <signal name="clicked" handler="on_apply_template_clicked" swapped="no"/>
+                      </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="homogeneous">True</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object class="GtkSeparatorToolItem">
+                        <property name="visible">True</property>
+                        <property name="can-focus">False</property>
+                      </object>
+                      <packing>
+                        <property name="expand">True</property>
+                        <property name="homogeneous">False</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object class="GtkToolButton" id="toolbar_copy">
+                        <property name="visible">True</property>
+                        <property name="can-focus">False</property>
+                        <property name="tooltip-text" translatable="yes">Copy configuration</property>
+                        <property name="label" translatable="yes">Copy</property>
+                        <property name="use-underline">True</property>
+                        <property name="icon-name">edit-copy</property>
+                        <signal name="clicked" handler="on_copy_clicked" swapped="no"/>
+                      </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="homogeneous">True</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object class="GtkToolButton" id="toolbar_rename">
+                        <property name="visible">True</property>
+                        <property name="can-focus">False</property>
+                        <property name="tooltip-text" translatable="yes">Rename configuration</property>
+                        <property name="halign">center</property>
+                        <property name="label" translatable="yes">Rename</property>
+                        <property name="use-underline">True</property>
+                        <property name="icon-name">document-edit</property>
+                        <signal name="clicked" handler="on_rename_clicked" swapped="no"/>
                       </object>
                       <packing>
                         <property name="expand">False</property>
@@ -133,11 +254,12 @@
                     <child>
                       <object class="GtkToolButton" id="toolbar_delete">
                         <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="tooltip_text" translatable="yes">Remove Configuration</property>
-                        <property name="label" translatable="yes">Remove Configuration</property>
-                        <property name="use_underline">True</property>
-                        <property name="icon_name">user-trash-symbolic</property>
+                        <property name="can-focus">False</property>
+                        <property name="tooltip-text" translatable="yes">Remove configuration</property>
+                        <property name="halign">center</property>
+                        <property name="label" translatable="yes">Remove</property>
+                        <property name="use-underline">True</property>
+                        <property name="icon-name">user-trash-symbolic</property>
                         <signal name="clicked" handler="on_delete_clicked" swapped="no"/>
                       </object>
                       <packing>
@@ -146,29 +268,25 @@
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkToolButton" id="toolbar_export">
+                      <object class="GtkSeparatorToolItem">
                         <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="tooltip_text" translatable="yes">Export</property>
-                        <property name="label" translatable="yes">Export</property>
-                        <property name="use_underline">True</property>
-                        <property name="icon_name">send-to-symbolic</property>
-                        <signal name="clicked" handler="on_export_clicked" swapped="no"/>
+                        <property name="can-focus">False</property>
                       </object>
                       <packing>
-                        <property name="expand">False</property>
-                        <property name="homogeneous">True</property>
+                        <property name="expand">True</property>
+                        <property name="homogeneous">False</property>
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkToolButton" id="toolbar_import">
+                      <object class="GtkToolButton" id="toolbar_export">
                         <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="tooltip_text" translatable="yes">Import</property>
-                        <property name="label" translatable="yes">Import</property>
-                        <property name="use_underline">True</property>
-                        <property name="icon_name">document-open-symbolic</property>
-                        <signal name="clicked" handler="on_import_clicked" swapped="no"/>
+                        <property name="can-focus">False</property>
+                        <property name="tooltip-text" translatable="yes">Export configuration</property>
+                        <property name="halign">end</property>
+                        <property name="label" translatable="yes">Export</property>
+                        <property name="use-underline">True</property>
+                        <property name="icon-name">emblem-shared-symbolic</property>
+                        <signal name="clicked" handler="on_export_clicked" swapped="no"/>
                       </object>
                       <packing>
                         <property name="expand">False</property>
@@ -182,21 +300,34 @@
                   <packing>
                     <property name="expand">False</property>
                     <property name="fill">True</property>
-                    <property name="position">1</property>
+                    <property name="position">3</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="label_current_config">
+                    <property name="visible">True</property>
+                    <property name="can-focus">False</property>
+                    <property name="halign">start</property>
+                    <property name="label" translatable="yes">Last loaded configuration:</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="padding">6</property>
+                    <property name="position">5</property>
                   </packing>
                 </child>
                 <child>
                   <object class="GtkButtonBox" id="buttonbox1">
                     <property name="visible">True</property>
-                    <property name="can_focus">False</property>
-                    <property name="margin_top">12</property>
+                    <property name="can-focus">False</property>
                     <child>
                       <object class="GtkButton" id="help">
                         <property name="label" translatable="yes">_Help</property>
                         <property name="visible">True</property>
-                        <property name="can_focus">True</property>
-                        <property name="receives_default">True</property>
-                        <property name="use_underline">True</property>
+                        <property name="can-focus">True</property>
+                        <property name="receives-default">True</property>
+                        <property name="use-underline">True</property>
                         <signal name="clicked" handler="on_help_clicked" swapped="no"/>
                       </object>
                       <packing>
@@ -209,9 +340,9 @@
                       <object class="GtkButton" id="close">
                         <property name="label" translatable="yes">_Close</property>
                         <property name="visible">True</property>
-                        <property name="can_focus">True</property>
-                        <property name="receives_default">True</property>
-                        <property name="use_underline">True</property>
+                        <property name="can-focus">True</property>
+                        <property name="receives-default">True</property>
+                        <property name="use-underline">True</property>
                         <signal name="clicked" handler="on_close_clicked" swapped="no"/>
                       </object>
                       <packing>
@@ -224,7 +355,89 @@
                   <packing>
                     <property name="expand">False</property>
                     <property name="fill">True</property>
-                    <property name="position">2</property>
+                    <property name="padding">6</property>
+                    <property name="position">7</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkFrame">
+                    <property name="can-focus">False</property>
+                    <property name="no-show-all">True</property>
+                    <property name="margin-top">14</property>
+                    <property name="label-xalign">0</property>
+                    <property name="shadow-type">in</property>
+                    <child>
+                      <object class="GtkAlignment">
+                        <property name="visible">True</property>
+                        <property name="can-focus">False</property>
+                        <property name="left-padding">12</property>
+                        <child>
+                          <object class="GtkBox">
+                            <property name="visible">True</property>
+                            <property name="can-focus">False</property>
+                            <property name="orientation">vertical</property>
+                            <child>
+                              <object class="GtkCheckButton" id="spread_panels">
+                                <property name="label" translatable="yes">Force one panel per monitors</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">True</property>
+                                <property name="receives-default">False</property>
+                                <property name="tooltip-text" translatable="yes">Assign only one panel per monitor</property>
+                                <property name="draw-indicator">True</property>
+                              </object>
+                              <packing>
+                                <property name="expand">False</property>
+                                <property name="fill">True</property>
+                                <property name="position">0</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkCheckButton" id="remap_extra_panels">
+                                <property name="label" translatable="yes">Remap extra panels</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">True</property>
+                                <property name="receives-default">False</property>
+                                <property name="tooltip-text" translatable="yes">Reassign unknown monitors panels  to available monitors </property>
+                                <property name="draw-indicator">True</property>
+                              </object>
+                              <packing>
+                                <property name="expand">False</property>
+                                <property name="fill">True</property>
+                                <property name="position">1</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkCheckButton" id="remove_extra_panels">
+                                <property name="label" translatable="yes">Remove extra panels</property>
+                                <property name="visible">True</property>
+                                <property name="can-focus">True</property>
+                                <property name="receives-default">False</property>
+                                <property name="tooltip-text" translatable="yes">Remove panels that are mapped on unknown monitors</property>
+                                <property name="draw-indicator">True</property>
+                              </object>
+                              <packing>
+                                <property name="expand">False</property>
+                                <property name="fill">True</property>
+                                <property name="position">2</property>
+                              </packing>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child type="label">
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="can-focus">False</property>
+                        <property name="label" translatable="yes">Load options</property>
+                      </object>
+                    </child>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="padding">12</property>
+                    <property name="position">45</property>
                   </packing>
                 </child>
               </object>
@@ -240,45 +453,42 @@
     </child>
   </object>
   <object class="GtkDialog" id="save_dialog">
-    <property name="can_focus">False</property>
+    <property name="can-focus">False</property>
     <property name="title" translatable="yes">Save panel configuration as...</property>
     <property name="resizable">False</property>
-    <property name="default_height">200</property>
-    <property name="icon_name">document-save-as</property>
-    <property name="type_hint">dialog</property>
-    <property name="transient_for">xfpanel_switch_window</property>
-    <child type="titlebar">
-      <placeholder/>
-    </child>
+    <property name="default-height">200</property>
+    <property name="icon-name">document-save-as</property>
+    <property name="type-hint">dialog</property>
+    <property name="transient-for">xfpanel_switch_window</property>
     <child internal-child="vbox">
       <object class="GtkBox" id="dialog-vbox1">
-        <property name="can_focus">False</property>
+        <property name="can-focus">False</property>
         <property name="orientation">vertical</property>
         <property name="spacing">2</property>
         <child internal-child="action_area">
           <object class="GtkButtonBox" id="dialog-action_area1">
-            <property name="can_focus">False</property>
-            <property name="layout_style">end</property>
+            <property name="can-focus">False</property>
+            <property name="layout-style">end</property>
             <child>
               <object class="GtkButton" id="button3">
                 <property name="label" translatable="yes">Cancel</property>
                 <property name="visible">True</property>
-                <property name="can_focus">True</property>
-                <property name="receives_default">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">True</property>
               </object>
               <packing>
                 <property name="expand">True</property>
                 <property name="fill">True</property>
                 <property name="position">0</property>
-                <property name="non_homogeneous">True</property>
+                <property name="non-homogeneous">True</property>
               </packing>
             </child>
             <child>
               <object class="GtkButton" id="button4">
                 <property name="label" translatable="yes">Save Configuration</property>
                 <property name="visible">True</property>
-                <property name="can_focus">True</property>
-                <property name="receives_default">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">True</property>
               </object>
               <packing>
                 <property name="expand">True</property>
@@ -296,48 +506,64 @@
         <child>
           <object class="GtkAlignment" id="alignment2">
             <property name="visible">True</property>
-            <property name="can_focus">False</property>
-            <property name="border_width">6</property>
+            <property name="can-focus">False</property>
+            <property name="border-width">6</property>
             <child>
+              <!-- n-columns=3 n-rows=3 -->
               <object class="GtkGrid" id="grid1">
                 <property name="visible">True</property>
-                <property name="can_focus">False</property>
-                <property name="row_spacing">6</property>
-                <property name="column_spacing">12</property>
+                <property name="can-focus">False</property>
+                <property name="row-spacing">6</property>
+                <property name="column-spacing">12</property>
                 <child>
                   <object class="GtkImage" id="image1">
                     <property name="visible">True</property>
-                    <property name="can_focus">False</property>
-                    <property name="icon_name">dialog-question-symbolic</property>
+                    <property name="can-focus">False</property>
+                    <property name="icon-name">dialog-question-symbolic</property>
                     <property name="icon_size">6</property>
                   </object>
                   <packing>
-                    <property name="left_attach">0</property>
-                    <property name="top_attach">0</property>
+                    <property name="left-attach">0</property>
+                    <property name="top-attach">0</property>
                     <property name="height">2</property>
                   </packing>
                 </child>
                 <child>
                   <object class="GtkLabel" id="label1">
                     <property name="visible">True</property>
-                    <property name="can_focus">False</property>
+                    <property name="can-focus">False</property>
                     <property name="label" translatable="yes">&lt;b&gt;Name the new panel configuration&lt;/b&gt;</property>
-                    <property name="use_markup">True</property>
+                    <property name="use-markup">True</property>
                   </object>
                   <packing>
-                    <property name="left_attach">1</property>
-                    <property name="top_attach">0</property>
+                    <property name="left-attach">1</property>
+                    <property name="top-attach">0</property>
                   </packing>
                 </child>
                 <child>
                   <object class="GtkEntry" id="name_entry">
                     <property name="visible">True</property>
-                    <property name="can_focus">True</property>
+                    <property name="can-focus">True</property>
                   </object>
                   <packing>
-                    <property name="left_attach">1</property>
-                    <property name="top_attach">1</property>
+                    <property name="left-attach">1</property>
+                    <property name="top-attach">1</property>
                   </packing>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
                 </child>
               </object>
             </child>

@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "xfce4_panel_profiles_python"
+version = "1.0.14"
+description = "Xfce4_panel_profiles is a simple application to manage Xfce panel layouts"
+authors = ["None"]
+license = "GPL"
+readme = "README.md"
+packages = [
+  {include = "xfce4_panel_profiles_python"},
+  {include = "xfce4-panel-profiles/*.py"},
+  #{include = "xfce4-panel-profiles/info.py"},
+  #{include = "info.py", from = "xfce4-panel-profiles"},
+  ]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+pygobject = "^3.44.1"
+psutil = "^5.9.5"
+
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.7.0"
+isort = "^5.12.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+xfce4-panel-profiles = "xfce4_panel_profiles_python.app:run"
