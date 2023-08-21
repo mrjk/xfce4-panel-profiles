@@ -280,6 +280,19 @@ class PanelConfig(object):
                 screen_req = pv.get_string()
                 panel_number = path[2].replace("panel-", "")
                 panel_config_orig[panel_number] = screen_req
+            elif (
+                len(path) == 4
+                and path[0] == ""
+                and path[1] == "panels"
+                and path[2].startswith("panel-")
+                and path[3] == "plugin-ids"
+            ):
+                panel_number = path[2].replace("panel-", "")
+                if not panel_number in panel_config_orig:
+                    panel_config_orig[panel_number] = ""
+
+        # pprint (panel_config_orig)
+        # pprint (self.properties)
 
         # Find incoherent configuration
         used_screens = {}
@@ -298,10 +311,15 @@ class PanelConfig(object):
                     screen_spread[real_name] = []
                 screen_spread[real_name].append(panel_number)
 
+            elif real_name == "":
+                missing_screens[real_name] = [ panel_number]
+
             else:
-                missing_screens[panel_number] = real_name
+                print ("missing screen for panel:", real_name)
+                missing_screens[real_name] = [panel_number]
 
         # Prepare new configuration
+
 
         unused_screens = [
             screen
@@ -310,53 +328,82 @@ class PanelConfig(object):
         ]
         deleted_panels = []
 
+        merged = {**screen_spread, **missing_screens}
+        print (screen_spread, missing_screens)
+        print ("merged")
+        pprint(merged)
+
         if spread_panels:
             index = 0
-            for screen_name, panels in screen_spread.items():
-                if len(panels) > 1:
-                    panel_names = ", ".join([f"panel-{panel}" for panel in panels])
-                    logger.debug(
-                        f"Found multiple panels on same monitor: {panel_names} on {screen_name}"
-                    )
+            for screen_name, panels in merged.items():
+            # for screen_name, panels in screen_spread.items():
 
-                    for panel_number in panels[1:]:
-                        if 0 <= index < len(unused_screens):
-                            if remap_extra_panels:
-                                available_screen = unused_screens[index]
-                                logger.debug(
-                                    f"Remap screen panel: panel-{panel_number} from {screen_name} to {available_screen}"
-                                )
-                                xval = GLib.Variant.parse(
-                                    None, f"'{available_screen}'", None, None
-                                )
+                print("SCNA", screen_name, "<>", panels, unused_screens)
 
-                                self.properties[
-                                    f"/panels/panel-{panel_number}/output-name"
-                                ] = xval
-                                used_screens[panel_number] = available_screen
-                                del unused_screens[index]
+                if screen_name == "":
+                    if unused_screens:
+                        screen_name = unused_screens.pop(0)
+                        if len(panels) > 0:
+                            panel_number = panels[0]
+                            xval = GLib.Variant.parse(
+                                None, f"'{screen_name}'", None, None
+                            )
 
-                            else:
-                                logger.debug(
-                                    f"Keep screen panel: panel-{panel_number} on missing {screen_name}"
-                                )
+                            self.properties[
+                                f"/panels/panel-{panel_number}/output-name"
+                            ] = xval
+                            used_screens[panel_number] = screen_name
+                            del unused_screens[index]
+
+                    else:
+                        logger.debug(
+                            f"No available monitor for panel: {panel_names}"
+                        )
+
+                # if len(panels) > 1:
+                panel_names = ", ".join([f"panel-{panel}" for panel in panels])
+                logger.debug(
+                    f"Found multiple panels on same monitor: {panel_names} on {screen_name}"
+                )
+
+                for panel_number in panels[1:]:
+                    if 0 <= index < len(unused_screens):
+                        if remap_extra_panels:
+                            available_screen = unused_screens[index]
+                            logger.debug(
+                                f"Remap screen panel: panel-{panel_number} from {screen_name} to {available_screen}"
+                            )
+                            xval = GLib.Variant.parse(
+                                None, f"'{available_screen}'", None, None
+                            )
+
+                            self.properties[
+                                f"/panels/panel-{panel_number}/output-name"
+                            ] = xval
+                            used_screens[panel_number] = available_screen
+                            del unused_screens[index]
 
                         else:
-                            if remove_extra_panels:
-                                logger.debug(
-                                    f"Remove extra panel: panel-{panel_number} on missing {screen_name}"
-                                )
-                                self.remove_keys(f"/panels/panel-{panel_number}")
-                                deleted_panels.append(panel_number)
+                            logger.debug(
+                                f"Keep screen panel: panel-{panel_number} on missing {screen_name}"
+                            )
 
-                                # panels_to_remove.append(f"/panels/panel-{panel_number}")
-                                # del panel_config_new[panel_number]
-                            else:
-                                logger.debug(
-                                    f"Keep extra panel: panel-{panel_number} on missing {screen_name}"
-                                )
-                else:
-                    logger.debug(f"Panel {panels} on {screen_name}")
+                    else:
+                        if remove_extra_panels:
+                            logger.debug(
+                                f"Remove extra panel: panel-{panel_number} on missing {screen_name}"
+                            )
+                            self.remove_keys(f"/panels/panel-{panel_number}")
+                            deleted_panels.append(panel_number)
+
+                            # panels_to_remove.append(f"/panels/panel-{panel_number}")
+                            # del panel_config_new[panel_number]
+                        else:
+                            logger.debug(
+                                f"Keep extra panel: panel-{panel_number} on missing {screen_name}"
+                            )
+                # else:
+                #     logger.debug(f"Panel {panels} on {screen_name}")
 
         # Update panels array
         new_panel_keys = ", ".join(
@@ -366,7 +413,7 @@ class PanelConfig(object):
                 if index not in deleted_panels
             ]
         )
-        new_panel_keys = f"[{new_panel_keys}]"
+        new_panel_keys = f"[ {new_panel_keys} ]"
         self.properties["/panels"] = GLib.Variant.parse(
             None, new_panel_keys, None, None
         )
