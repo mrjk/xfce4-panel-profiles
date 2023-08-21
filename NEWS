@@ -1,4 +1,14 @@
-xfce4-panel-profiles 1.1.0 (2023-08-xx)
+
+xfce4-panel-profiles 1.1.0b2 (2023-08-xx)
+
+
+    * General
+      - A way to hide system profiles
+      - ERwork UI logic
+      - Clean duplicate code
+      - SEparate classes
+
+xfce4-panel-profiles 1.1.0b1 (2023-08-xx)
 
     * New Features
       - Add ability to copy or rename existing profiles
@@ -10,11 +20,11 @@ xfce4-panel-profiles 1.1.0 (2023-08-xx)
       - Now creates an entry in xfconf to keep track of last loaded profiles/templates
       - Add support for python virtualenv
       - Add poetry support to be able to build package
+      - Prepare ground to be able to call this program from external scripts/python
       - Big rework of the internal code
     * Bugs Fixed
-      - Release install error: incorrect README filename (#24)
       - Better name matching between profile names and filenames
-      - UI is confusing: Buttons have been moved around, top menu
+      - UI was confusing: Buttons have been moved around, top menu
 
 
 1.0.14 (2023-06-05)
